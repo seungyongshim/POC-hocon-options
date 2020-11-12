@@ -1,0 +1,137 @@
+petabridge.cmd 
+{
+    host = "0.0.0.0"
+    port = 9111
+    log-palettes-on-startup = on
+}
+
+akka 
+{
+    service.name = "TestClusterApi"
+	service.description = "TestClusterApi"
+    system.name = "mls-cluster-system" 	
+
+    stdout-loglevel = DEBUG
+    loglevel = DEBUG
+    log-config-on-start = on
+    loggers = ["Akka.Logger.NLog.NLogLogger, Akka.Logger.NLog"]
+
+    actor
+    {
+        provider = cluster
+		guardian-supervisor-strategy = "TestClusterApi.ActorService.UserSupervisorStrategy, TestClusterApi"
+
+        debug
+        {
+            receive = off         
+            autoreceive = off  
+            lifecycle = off       
+            event-stream = off
+            unhandled = on    
+        }
+
+        deployment 
+        {
+			/ApiMasterActor 
+			{
+			
+			}
+
+            "/ApiMasterActor/*/TestClusterRole1HelloActor"
+            {
+				router = round-robin-pool
+				nr-of-instances = 100
+				
+			    cluster
+                {
+					enabled = on
+                    max-nr-of-instances-per-node = 1
+                    allow-local-routees = off
+                    use-role = role1
+                }
+            }
+
+			"/ApiMasterActor/*/TestClusterRole2HelloActor"
+            {
+				router = round-robin-pool
+				nr-of-instances = 100
+				
+			    cluster
+                {
+					enabled = on
+                    max-nr-of-instances-per-node = 1
+                    allow-local-routees = off
+                    use-role = role2
+                }
+            }
+
+			"/ApiMasterActor/*/TestClusterRole3HelloActor"
+			{
+				router = round-robin-pool
+				nr-of-instances = 100
+
+			    cluster
+                {
+					enabled = on
+                    max-nr-of-instances-per-node = 1
+                    allow-local-routees = off
+                    use-role = role3
+                }
+            }
+        }
+    }
+
+    remote
+    {
+        dot-netty.tcp 
+        {
+            public-hostname = 127.0.0.1
+			port = 0
+
+            send-buffer-size    = 2097152b  # 2MB
+            receive-buffer-size = 2097152b  # 2MB
+            maximum-frame-size  = 1048576b  # 1MB
+        }
+        
+        transport-failure-detector
+        {
+            heartbeat-interval = 5s                
+            acceptable-heartbeat-pause = 50s   
+        }
+    }
+    
+    extensions = ["Akka.Cluster.Tools.Client.ClusterClientReceptionistExtensionProvider, Akka.Cluster.Tools"]
+
+    cluster 
+    {
+        seed-nodes = ["akka.tcp://mls-cluster-system@127.0.0.1:4062"]
+        roles = [api]
+
+        auto-down-unreachable-after = 10s 
+
+		gossip-interval = 5s 
+        gossip-time-to-live = 30s 
+
+        failure-detector 
+        {
+            heartbeat-interval = 5s
+            acceptable-heartbeat-pause = 50s
+        }
+
+		singleton
+		{
+			singleton-name = "ClusterSingleton"
+			role = "role1"
+			hand-over-retry-interval = 1s
+			min-number-of-hand-over-retries = 10
+		}
+		
+		#singleton-proxy 
+		#{
+		#	singleton-name = ${akka.cluster.singleton.singleton-name}
+		#	role = "role1"
+		#	singleton-identification-interval = 1s
+		#	buffer-size = 1000
+		#}
+    }
+}
